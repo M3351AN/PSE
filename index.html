@@ -1,0 +1,164 @@
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: white;
+      color: black;
+    }
+
+    input {
+      width: 300px;
+      font-size: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+
+    .result {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    .score {
+      width: 300px;
+      height: 20px;
+      border: 1px solid #ccc;
+    }
+
+    .bar {
+      height: 100%;
+      background-color: green;
+    }
+
+    /* 添加圆角和阴影效果 */
+    h1, input, .score, .bar {
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Password Strength Estimation</h1>
+  <p>Please enter your password,<br> and this will estimate its strength and crack time.</p>
+  <p>This estimation is based on simple brute force,<br> and does not represent other cracking methods <br>such as dictionary attacks.</p>
+  <p>The purpose of this tool is <br>to raise your awareness of password security <br>and to help improve your password.</p>
+  <input id="password" type="password" placeholder="Enter password" oninput="estimatePasswordStrength()">
+  <div class="result" id="result"></div>
+  <div class="score" id="score"><div class="bar" id="bar"></div></div>
+  <script>
+    function prettifyExponentialNotation(exponentialNotation) {
+      const [base, exponent] = exponentialNotation.toString().split('e');
+      const baseAsNumber = Number.parseFloat(base);
+      const prettyBase = baseAsNumber % 1 === 0 ? baseAsNumber.toLocaleString() : baseAsNumber.toFixed(2);
+      return exponent ? `${prettyBase}e${exponent}` : prettyBase;
+    }
+
+    function getHumanFriendlyDuration({ seconds }) {
+      if (seconds <= 0.001) {
+        return 'Instantly';
+      }
+
+      if (seconds <= 1) {
+        return 'Less than a second';
+      }
+
+      const timeUnits = [
+        { unit: 'millenium', secondsInUnit: 31536000000, format: prettifyExponentialNotation, plural: 'millennia' },
+        { unit: 'century', secondsInUnit: 3153600000, plural: 'centuries' },
+        { unit: 'decade', secondsInUnit: 315360000, plural: 'decades' },
+        { unit: 'year', secondsInUnit: 31536000, plural: 'years' },
+        { unit: 'month', secondsInUnit: 2592000, plural: 'months' },
+        { unit: 'week', secondsInUnit: 604800, plural: 'weeks' },
+        { unit: 'day', secondsInUnit: 86400, plural: 'days' },
+        { unit: 'hour', secondsInUnit: 3600, plural: 'hours' },
+        { unit: 'minute', secondsInUnit: 60, plural: 'minutes' },
+        { unit: 'second', secondsInUnit: 1, plural: 'seconds' },
+      ];
+
+      let result = [];
+      for (let { unit, secondsInUnit, plural, format } of timeUnits) {
+        const quantity = Math.floor(seconds / secondsInUnit);
+        seconds %= secondsInUnit;
+
+        if (quantity <= 0) {
+          continue;
+        }
+
+        const formattedQuantity = format ? format(quantity) : quantity;
+        result.push(`${formattedQuantity} ${quantity > 1 ? plural : unit}`);
+      }
+
+      return result.slice(0, 2).join(', ');
+    }
+
+    function getPasswordCrackTimeEstimation({ password, guessesPerSecond = 1e9 }) {
+      const charsetLength = getCharsetLength({ password });
+      const passwordLength = password.length;
+
+      const entropy = password === '' ? 0 : Math.log2(charsetLength) * passwordLength;
+
+      const secondsToCrack = 2 ** entropy / guessesPerSecond;
+
+      const crackDurationFormatted = getHumanFriendlyDuration({ seconds: secondsToCrack });
+
+      const score = Math.min(entropy / 128, 1);
+
+      return {
+        entropy,
+        charsetLength,
+        passwordLength,
+        crackDurationFormatted,
+        secondsToCrack,
+        score,
+      };
+    }
+
+    function getCharsetLength({ password }) {
+      const hasLowercase = /[a-z]/.test(password);
+      const hasUppercase = /[A-Z]/.test(password);
+      const hasDigits = /\d/.test(password);
+      const hasSpecialChars = /\W|_/.test(password);
+
+      let charsetLength = 0;
+
+      if (hasLowercase) {
+        charsetLength += 26;
+      }
+      if (hasUppercase) {
+        charsetLength += 26;
+      }
+      if (hasDigits) {
+        charsetLength += 10;
+      }
+      if (hasSpecialChars) {
+        charsetLength += 32;
+      }
+
+      return charsetLength;
+    }
+
+    function estimatePasswordStrength() {
+      const password = document.getElementById("password").value;
+      const { entropy, charsetLength, passwordLength, crackDurationFormatted, secondsToCrack, score } = getPasswordCrackTimeEstimation({ password });
+      const result = document.getElementById("result");
+      result.innerHTML = `
+        <p>Your password has ${passwordLength} characters.</p>
+        <p>Your password has a charset size of ${charsetLength} characters.</p>
+        <p>Your password has an entropy of ${entropy.toFixed(2)} bits.</p>
+        <p>Your password can be cracked in </p>
+        <h3>${crackDurationFormatted}.</h3>
+      `;
+      const bar = document.getElementById("bar");
+      bar.style.width = `${score * 100}%`;
+      if (score < 0.25) {
+        bar.style.backgroundColor = "red";
+      } else if (score < 0.5) {
+        bar.style.backgroundColor = "orange";
+      } else if (score < 0.75) {
+        bar.style.backgroundColor = "yellow";
+      } else {
+        bar.style.backgroundColor = "green";
+      }
+    }
+  </script>
+</body>
+</html>
